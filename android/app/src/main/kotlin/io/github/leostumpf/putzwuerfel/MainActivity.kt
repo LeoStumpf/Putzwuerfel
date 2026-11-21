@@ -1,4 +1,4 @@
-package io.github.leostumpf.choredice
+package io.github.leostumpf.putzwuerfel
 
 import io.flutter.embedding.android.FlutterActivity
 

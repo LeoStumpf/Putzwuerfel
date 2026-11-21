@@ -1,7 +1,7 @@
 import 'dart:math';
 
-import 'package:choredice/main.dart';
-import 'package:choredice/store.dart';
+import 'package:putzwuerfel/main.dart';
+import 'package:putzwuerfel/store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';

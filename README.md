@@ -1,4 +1,4 @@
-# Aufgabenwürfel (choredice)
+# Putzwürfel (putzwuerfel)
 
 Lifehack „Chores würfeln“: Aufgaben aufschreiben, würfeln, die gezogene Aufgabe als Nächstes erledigen.
 
@@ -12,4 +12,4 @@ flutter test
 flutter build apk --release   # signiert mit android/key.properties (gitignored), sonst Debug-Key
 xiaomi install build/app/outputs/flutter-apk/app-release.apk
 ```
-applicationId: `io.github.leostumpf.choredice`
+applicationId: `io.github.leostumpf.putzwuerfel`

@@ -23,7 +23,7 @@ class ChoreDiceApp extends StatelessWidget {
   Widget build(BuildContext context) {
     const seed = Colors.deepOrange;
     return MaterialApp(
-      title: 'Aufgabenwürfel',
+      title: 'Putzwürfel',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorSchemeSeed: seed, useMaterial3: true),
       darkTheme: ThemeData(

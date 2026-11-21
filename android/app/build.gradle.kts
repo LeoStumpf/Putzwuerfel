@@ -17,7 +17,7 @@ if (hasReleaseKeystore) {
 }
 
 android {
-    namespace = "io.github.leostumpf.choredice"
+    namespace = "io.github.leostumpf.putzwuerfel"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -27,7 +27,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "io.github.leostumpf.choredice"
+        applicationId = "io.github.leostumpf.putzwuerfel"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
