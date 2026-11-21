@@ -27,24 +27,43 @@ class Chore {
   bool inPot;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'repeating': repeating,
-        'inPot': inPot,
-      };
+    'id': id,
+    'title': title,
+    'repeating': repeating,
+    'inPot': inPot,
+  };
 
   factory Chore.fromJson(Map<String, dynamic> json) => Chore(
-        id: json['id'] as String,
-        title: json['title'] as String,
-        repeating: json['repeating'] as bool? ?? false,
-        inPot: json['inPot'] as bool? ?? true,
-      );
+    id: json['id'] as String,
+    title: json['title'] as String,
+    repeating: json['repeating'] as bool? ?? false,
+    inPot: json['inPot'] as bool? ?? true,
+  );
 }
 
 class ChoreStore extends ChangeNotifier {
-  ChoreStore(this._prefs) {
-    _load();
+  /// [seedDefaults]: beim allerersten Start die Bibliothek mit
+  /// [defaultChores] füllen (Tests schalten das ab).
+  ChoreStore(this._prefs, {bool seedDefaults = true}) {
+    _load(seedDefaults);
   }
+
+  /// Startausstattung der Bibliothek beim ersten Öffnen – wiederkehrend,
+  /// nicht im Topf, löschbar wie jede andere Aufgabe.
+  static const defaultChores = [
+    'Bad putzen',
+    'Küche putzen',
+    'Staubsaugen',
+    'Boden wischen',
+    'Staub wischen',
+    'Müll rausbringen',
+    'Wäsche waschen',
+    'Bettwäsche wechseln',
+    'Fenster putzen',
+    'Kühlschrank auswischen',
+    'Spülmaschine ausräumen',
+    'Pflanzen gießen',
+  ];
 
   static const _key = 'chores_v1';
   static const _currentKey = 'current_v1';
@@ -79,10 +98,22 @@ class ChoreStore extends ChangeNotifier {
     return null;
   }
 
-  void _load() {
+  void _load(bool seedDefaults) {
     _currentId = _prefs.getString(_currentKey);
     final raw = _prefs.getString(_key);
-    if (raw == null) return;
+    if (raw == null) {
+      // Erster Start: einmal befüllen und sofort speichern, damit gelöschte
+      // Vorschläge nicht wiederkommen.
+      if (seedDefaults) {
+        for (final t in defaultChores) {
+          _chores.add(
+            Chore(id: _newId(), title: t, repeating: true, inPot: false),
+          );
+        }
+        _save();
+      }
+      return;
+    }
     final list = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
     _chores
       ..clear()
@@ -93,7 +124,9 @@ class ChoreStore extends ChangeNotifier {
     if (_currentId != null && current == null) _currentId = null;
     notifyListeners();
     await _prefs.setString(
-        _key, jsonEncode(_chores.map((c) => c.toJson()).toList()));
+      _key,
+      jsonEncode(_chores.map((c) => c.toJson()).toList()),
+    );
     if (_currentId == null) {
       await _prefs.remove(_currentKey);
     } else {
@@ -101,8 +134,7 @@ class ChoreStore extends ChangeNotifier {
     }
   }
 
-  String _newId() =>
-      '${DateTime.now().microsecondsSinceEpoch}-${_nextId++}';
+  String _newId() => '${DateTime.now().microsecondsSinceEpoch}-${_nextId++}';
 
   Future<Chore?> add(String title, {bool repeating = false}) async {
     final t = title.trim();
@@ -150,11 +182,14 @@ class ChoreStore extends ChangeNotifier {
     if (existing != null) {
       existing.repeating = true;
     } else {
-      _chores.add(Chore(
+      _chores.add(
+        Chore(
           id: snapshot.id,
           title: snapshot.title,
           repeating: true,
-          inPot: false));
+          inPot: false,
+        ),
+      );
     }
     await _save();
   }

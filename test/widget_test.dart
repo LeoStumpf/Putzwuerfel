@@ -8,12 +8,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 Future<ChoreStore> _store() async {
   SharedPreferences.setMockInitialValues({});
-  return ChoreStore(await SharedPreferences.getInstance());
+  return ChoreStore(await SharedPreferences.getInstance(), seedDefaults: false);
 }
 
 void main() {
-  testWidgets('anlegen, würfeln, erst nach Erledigt zurück zum Topf',
-      (tester) async {
+  testWidgets('anlegen, würfeln, erst nach Erledigt zurück zum Topf', (
+    tester,
+  ) async {
     final store = await _store();
     await tester.pumpWidget(ChoreDiceApp(store: store, random: Random(3)));
 
@@ -21,7 +22,10 @@ void main() {
 
     await tester.tap(find.byKey(const Key('add')));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byKey(const Key('title')), 'Glühbirne wechseln');
+    await tester.enterText(
+      find.byKey(const Key('title')),
+      'Glühbirne wechseln',
+    );
     await tester.tap(find.byKey(const Key('save')));
     await tester.pumpAndSettle();
     expect(find.text('Glühbirne wechseln'), findsOneWidget);
@@ -47,8 +51,9 @@ void main() {
     expect(store.library.single.inPot, isFalse);
   });
 
-  testWidgets('einmalige schon beim Ziehen zur Bibliothek hinzufügen',
-      (tester) async {
+  testWidgets('einmalige schon beim Ziehen zur Bibliothek hinzufügen', (
+    tester,
+  ) async {
     final store = await _store();
     await store.add('Keller entrümpeln');
     await tester.pumpWidget(ChoreDiceApp(store: store, random: Random(1)));
@@ -68,8 +73,9 @@ void main() {
     expect(store.pot, isEmpty);
   });
 
-  testWidgets('wiederkehrende: nur Erledigt, danach in der Bibliothek',
-      (tester) async {
+  testWidgets('wiederkehrende: nur Erledigt, danach in der Bibliothek', (
+    tester,
+  ) async {
     final store = await _store();
     await store.add('Spülmaschine ausräumen', repeating: true);
     await tester.pumpWidget(ChoreDiceApp(store: store, random: Random(3)));
@@ -93,7 +99,10 @@ void main() {
     final store = await _store();
     final c = (await store.add('Bad putzen', repeating: true))!;
     await store.setCurrent(c.id);
-    final reopened = ChoreStore(await SharedPreferences.getInstance());
+    final reopened = ChoreStore(
+      await SharedPreferences.getInstance(),
+      seedDefaults: false,
+    );
     await tester.pumpWidget(ChoreDiceApp(store: reopened));
     await tester.pumpAndSettle();
     expect(find.text('BAD PUTZEN'), findsOneWidget);

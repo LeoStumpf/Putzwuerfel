@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 Future<ChoreStore> newStore() async {
   final prefs = await SharedPreferences.getInstance();
-  return ChoreStore(prefs);
+  return ChoreStore(prefs, seedDefaults: false);
 }
 
 void main() {
@@ -100,15 +100,38 @@ void main() {
     expect(s.library.single.id, c.id);
   });
 
-  test('addToLibrary holt erledigte einmalige als wiederkehrend zurück',
-      () async {
-    final s = await newStore();
-    final c = (await s.add('Fenster'))!;
-    await s.complete(c.id);
-    expect(s.byId(c.id), isNull);
-    await s.addToLibrary(Chore(id: c.id, title: c.title));
-    expect(s.library.single.title, 'Fenster');
-    expect(s.library.single.inPot, isFalse);
-    expect(s.pot, isEmpty);
+  test(
+    'addToLibrary holt erledigte einmalige als wiederkehrend zurück',
+    () async {
+      final s = await newStore();
+      final c = (await s.add('Fenster'))!;
+      await s.complete(c.id);
+      expect(s.byId(c.id), isNull);
+      await s.addToLibrary(Chore(id: c.id, title: c.title));
+      expect(s.library.single.title, 'Fenster');
+      expect(s.library.single.inPot, isFalse);
+      expect(s.pot, isEmpty);
+    },
+  );
+
+  test(
+    'erster Start: Vorschläge in der Bibliothek, Topf leer, löschbar',
+    () async {
+      final prefs = await SharedPreferences.getInstance();
+      final s = ChoreStore(prefs);
+      expect(s.library.length, ChoreStore.defaultChores.length);
+      expect(s.pot, isEmpty);
+      for (final c in s.library) {
+        await s.delete(c.id);
+      }
+      expect(ChoreStore(prefs).library, isEmpty);
+    },
+  );
+
+  test('bestehende Daten werden nicht mit Vorschlägen ergänzt', () async {
+    final prefs = await SharedPreferences.getInstance();
+    await ChoreStore(prefs, seedDefaults: false).add('Eigenes');
+    expect(ChoreStore(prefs).library, isEmpty);
+    expect(ChoreStore(prefs).pot.single.title, 'Eigenes');
   });
 }
