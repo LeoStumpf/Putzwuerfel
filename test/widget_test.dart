@@ -22,6 +22,13 @@ void main() {
 
     await tester.tap(find.byKey(const Key('add')));
     await tester.pumpAndSettle();
+    expect(find.text('Einmalig'), findsOneWidget);
+    expect(find.text('Wiederkehrend'), findsNothing);
+    await tester.tap(find.byKey(const Key('repeating')));
+    await tester.pumpAndSettle();
+    expect(find.text('Wiederkehrend'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('repeating')));
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('title')),
       'Glühbirne wechseln',

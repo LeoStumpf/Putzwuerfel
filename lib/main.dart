@@ -1024,10 +1024,10 @@ class _AddChoreDialogState extends State<AddChoreDialog> {
             SwitchListTile(
               key: const Key('repeating'),
               contentPadding: EdgeInsets.zero,
-              title: const Text('Wiederkehrend',
-                  style: TextStyle(fontWeight: FontWeight.w800)),
+              title: Text(_repeating ? 'Wiederkehrend' : 'Einmalig',
+                  style: const TextStyle(fontWeight: FontWeight.w800)),
               subtitle: Text(_repeating
-                  ? 'Kommt nach „Erledigt“ in die Bibliothek'
+                  ? 'Kommt nach „Erledigt“ zurück in die Bibliothek'
                   : 'Wird nach „Erledigt“ gelöscht'),
               value: _repeating,
               onChanged: (v) => setState(() => _repeating = v),
