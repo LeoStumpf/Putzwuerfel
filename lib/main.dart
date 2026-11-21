@@ -44,11 +44,18 @@ void _snack(ScaffoldMessengerState messenger, String text,
     ));
 }
 
-/// Bearbeiten-Menü für eine Aufgabe (Topf-Liste und Bibliothek):
-/// umbenennen, aus dem Topf nehmen, zur Bibliothek, löschen (mit Rückgängig).
-Future<void> showChoreMenu(
-    BuildContext context, ChoreStore store, Chore c) async {
+/// Wo das Menü geöffnet wurde – bestimmt, was „entfernen“ bedeutet.
+enum MenuPlace { pot, library }
+
+/// Bearbeiten-Menü für eine Aufgabe.
+///
+/// * Im **Topf** wirkt alles nur auf den Topf: „Aus dem Topf nehmen“
+///   (wiederkehrende bleiben in der Bibliothek, einmalige sind dann weg).
+/// * In der **Bibliothek** wird endgültig gelöscht.
+Future<void> showChoreMenu(BuildContext context, ChoreStore store, Chore c,
+    {required MenuPlace place}) async {
   final messenger = ScaffoldMessenger.of(context);
+  final inPotView = place == MenuPlace.pot;
   final action = await showModalBottomSheet<String>(
     context: context,
     builder: (context) => Theme(
@@ -58,38 +65,58 @@ Future<void> showChoreMenu(
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+              padding: const EdgeInsets.fromLTRB(20, 22, 20, 2),
               child: Text(c.title.toUpperCase(),
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                       fontFamily: K.display, fontSize: 20, color: K.ink)),
             ),
-            ListTile(
+            Text(
+              c.repeating ? 'Wiederkehrend' : 'Einmalig',
+              style: const TextStyle(
+                  color: K.green, fontWeight: FontWeight.w800, fontSize: 13),
+            ),
+            const SizedBox(height: 8),
+            _MenuItem(
               key: const Key('menu-rename'),
-              leading: const Icon(Icons.edit_outlined),
-              title: const Text('Umbenennen'),
-              onTap: () => Navigator.pop(context, 'rename'),
+              icon: Icons.edit_outlined,
+              title: 'Umbenennen',
+              value: 'rename',
             ),
-            if (c.repeating && c.inPot)
-              ListTile(
+            if (inPotView && !c.repeating)
+              const _MenuItem(
+                key: Key('menu-lib'),
+                icon: Icons.repeat,
+                title: 'Zur Bibliothek hinzufügen',
+                subtitle: 'Wird ab jetzt wiederkehrend',
+                value: 'lib',
+              ),
+            if (!inPotView && !c.inPot)
+              const _MenuItem(
+                key: Key('menu-in'),
+                icon: Icons.add_circle_outline,
+                title: 'In den Topf legen',
+                value: 'in',
+              ),
+            if (c.inPot)
+              _MenuItem(
                 key: const Key('menu-out'),
-                leading: const Icon(Icons.remove_circle_outline),
-                title: const Text('Aus dem Topf nehmen'),
-                onTap: () => Navigator.pop(context, 'out'),
+                icon: Icons.remove_circle_outline,
+                title: 'Aus dem Topf nehmen',
+                subtitle: c.repeating
+                    ? 'Bleibt in der Bibliothek'
+                    : 'Einmalige Aufgabe – ist danach weg',
+                value: 'out',
               ),
-            if (!c.repeating)
-              ListTile(
-                key: const Key('menu-lib'),
-                leading: const Icon(Icons.repeat),
-                title: const Text('Zur Bibliothek hinzufügen'),
-                onTap: () => Navigator.pop(context, 'lib'),
+            if (!inPotView)
+              const _MenuItem(
+                key: Key('menu-delete'),
+                icon: Icons.delete_outline,
+                title: 'Aus der Bibliothek löschen',
+                subtitle: 'Endgültig – auch aus dem Topf',
+                value: 'delete',
+                danger: true,
               ),
-            ListTile(
-              key: const Key('menu-delete'),
-              leading: const Icon(Icons.delete_outline, color: K.red),
-              title: const Text('Löschen', style: TextStyle(color: K.red)),
-              onTap: () => Navigator.pop(context, 'delete'),
-            ),
             const SizedBox(height: 8),
           ],
         ),
@@ -97,6 +124,8 @@ Future<void> showChoreMenu(
     ),
   );
   if (!context.mounted) return;
+  final snapshot =
+      Chore(id: c.id, title: c.title, repeating: c.repeating, inPot: c.inPot);
   switch (action) {
     case 'rename':
       final t = await showDialog<String>(
@@ -104,16 +133,59 @@ Future<void> showChoreMenu(
         builder: (_) => RenameDialog(initial: c.title),
       );
       if (t != null) await store.rename(c.id, t);
-    case 'out':
-      await store.removeFromPot(c.id);
     case 'lib':
       await store.makeRepeating(c.id);
+      _snack(messenger, '„${c.title}“ ist jetzt in der Bibliothek');
+    case 'in':
+      await store.addToPot(c.id);
+    case 'out':
+      await store.removeFromPot(c.id);
+      _snack(
+          messenger,
+          c.repeating
+              ? '„${c.title}“ aus dem Topf genommen'
+              : '„${c.title}“ entfernt',
+          actionLabel: 'Rückgängig',
+          onAction: () => store.restore(snapshot));
     case 'delete':
-      final snapshot = Chore(
-          id: c.id, title: c.title, repeating: c.repeating, inPot: c.inPot);
       await store.delete(c.id);
       _snack(messenger, '„${c.title}“ gelöscht',
           actionLabel: 'Rückgängig', onAction: () => store.restore(snapshot));
+  }
+}
+
+class _MenuItem extends StatelessWidget {
+  const _MenuItem({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.value,
+    this.subtitle,
+    this.danger = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final String value;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = danger ? K.red : K.ink;
+    return ListTile(
+      leading: Icon(icon, color: color),
+      title: Text(title,
+          style: TextStyle(
+              color: color, fontWeight: FontWeight.w800, fontSize: 16)),
+      subtitle: subtitle == null
+          ? null
+          : Text(subtitle!,
+              style: TextStyle(
+                  color: color.withValues(alpha: 0.7),
+                  fontWeight: FontWeight.w700)),
+      onTap: () => Navigator.pop(context, value),
+    );
   }
 }
 
@@ -148,7 +220,10 @@ class _HomePageState extends State<HomePage> {
             body = ResultPage(store: store, chore: current);
             key = 'result-${current.id}';
           } else if (_tab == 0) {
-            body = PotPage(store: store, random: widget.random);
+            body = PotPage(
+                store: store,
+                random: widget.random,
+                onOpenLibrary: () => setState(() => _tab = 1));
             key = 'pot';
           } else {
             body = LibraryPage(store: store);
@@ -299,9 +374,14 @@ class _TabButton extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class PotPage extends StatefulWidget {
-  const PotPage({super.key, required this.store, this.random});
+  const PotPage(
+      {super.key,
+      required this.store,
+      required this.onOpenLibrary,
+      this.random});
 
   final ChoreStore store;
+  final VoidCallback onOpenLibrary;
   final Random? random;
 
   @override
@@ -398,7 +478,7 @@ class _PotPageState extends State<PotPage> with SingleTickerProviderStateMixin {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(22, 0, 22, 0),
             child: pot.isEmpty
-                ? _EmptyPot(store: store)
+                ? _EmptyPot(onOpenLibrary: widget.onOpenLibrary)
                 : PopButton(
                     key: const Key('roll'),
                     label: _rolling ? 'WÜRFELT …' : 'JETZT WÜRFELN!',
@@ -450,7 +530,8 @@ class _PotPageState extends State<PotPage> with SingleTickerProviderStateMixin {
                   key: ValueKey('row-${c.id}'),
                   title: c.title,
                   repeating: c.repeating,
-                  onTap: () => showChoreMenu(context, store, c),
+                  onTap: () =>
+                      showChoreMenu(context, store, c, place: MenuPlace.pot),
                 ),
               );
             },
@@ -463,33 +544,33 @@ class _PotPageState extends State<PotPage> with SingleTickerProviderStateMixin {
 }
 
 class _EmptyPot extends StatelessWidget {
-  const _EmptyPot({required this.store});
+  const _EmptyPot({required this.onOpenLibrary});
 
-  final ChoreStore store;
+  final VoidCallback onOpenLibrary;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         const Text(
-          'Der Topf ist leer.\nFüge mit + Aufgaben hinzu.',
+          'Der Topf ist leer.\nLeg Aufgaben aus der Bibliothek rein\n'
+          'oder füge mit + neue hinzu.',
           textAlign: TextAlign.center,
           style: TextStyle(
               color: K.soft, fontWeight: FontWeight.w800, fontSize: 16),
         ),
-        if (store.hasRepeatingOutsidePot) ...[
-          const SizedBox(height: 16),
-          PopButton(
-            label: 'WIEDERKEHRENDE AUFFÜLLEN',
-            icon: Icons.playlist_add,
-            background: K.mustard,
-            foreground: K.ink,
-            height: 54,
-            fontSize: 16,
-            shadowOffset: 5,
-            onPressed: store.addAllRepeatingToPot,
-          ),
-        ],
+        const SizedBox(height: 16),
+        PopButton(
+          key: const Key('openLib'),
+          label: 'ZUR BIBLIOTHEK',
+          icon: Icons.inventory_2_outlined,
+          background: K.mustard,
+          foreground: K.ink,
+          height: 54,
+          fontSize: 16,
+          shadowOffset: 5,
+          onPressed: onOpenLibrary,
+        ),
       ],
     );
   }
@@ -732,30 +813,12 @@ class LibraryPage extends StatelessWidget {
                 Text('BIBLIO-\nTHEK', style: K.headline),
                 SizedBox(height: 8),
                 Text(
-                  'Alles, was immer wiederkommt. Antippen = ab in den Topf, '
-                  '⋮ oder lange drücken = bearbeiten.',
+                  'Alles, was immer wiederkommt. Antippen legt die Aufgabe '
+                  'in den Topf, die drei Punkte öffnen Bearbeiten & Löschen.',
                   style: TextStyle(
                       color: K.soft, fontWeight: FontWeight.w700, fontSize: 15),
                 ),
               ],
-            ),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(22, 16, 22, 0),
-            child: PopButton(
-              key: const Key('allIn'),
-              label: 'ALLE IN DEN TOPF',
-              icon: Icons.playlist_add,
-              background: K.mustard,
-              foreground: K.ink,
-              height: 52,
-              fontSize: 16,
-              shadowOffset: 5,
-              onPressed: store.hasRepeatingOutsidePot
-                  ? store.addAllRepeatingToPot
-                  : null,
             ),
           ),
         ),
@@ -791,7 +854,8 @@ class LibraryPage extends StatelessWidget {
                 return _LibraryTile(
                   chore: c,
                   onTap: c.inPot ? null : () => store.addToPot(c.id),
-                  onLongPress: () => showChoreMenu(context, store, c),
+                  onLongPress: () => showChoreMenu(context, store, c,
+                      place: MenuPlace.library),
                 );
               },
             ),

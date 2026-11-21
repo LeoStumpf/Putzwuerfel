@@ -54,6 +54,12 @@ ThemeData buildTheme() {
     colorScheme: scheme,
     fontFamily: K.body,
     scaffoldBackgroundColor: K.green,
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: K.cream,
+      modalBackgroundColor: K.cream,
+      surfaceTintColor: Colors.transparent,
+      shape: _inkBorder,
+    ),
     snackBarTheme: const SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       backgroundColor: K.cream,

@@ -88,9 +88,6 @@ class ChoreStore extends ChangeNotifier {
   List<Chore> get library => _chores.where((c) => c.repeating).toList()
     ..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
 
-  bool get hasRepeatingOutsidePot =>
-      _chores.any((c) => c.repeating && !c.inPot);
-
   Chore? byId(String id) {
     for (final c in _chores) {
       if (c.id == id) return c;
@@ -214,13 +211,6 @@ class ChoreStore extends ChangeNotifier {
     final c = byId(id);
     if (c == null || c.inPot) return;
     c.inPot = true;
-    await _save();
-  }
-
-  Future<void> addAllRepeatingToPot() async {
-    for (final c in _chores) {
-      if (c.repeating) c.inPot = true;
-    }
     await _save();
   }
 

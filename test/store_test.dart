@@ -27,7 +27,6 @@ void main() {
     await s.complete(c.id);
     expect(s.pot, isEmpty);
     expect(s.library.single.title, 'Spülmaschine ausräumen');
-    expect(s.hasRepeatingOutsidePot, isTrue);
     await s.addToPot(c.id);
     expect(s.pot.single.id, c.id);
   });

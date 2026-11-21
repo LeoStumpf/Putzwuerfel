@@ -85,9 +85,11 @@ void main() {
     expect(find.byKey(const Key('toLibrary')), findsNothing);
     await tester.tap(find.byKey(const Key('done')));
     await tester.pumpAndSettle();
-    expect(find.text('WIEDERKEHRENDE AUFFÜLLEN'), findsOneWidget);
+    // Kein „alle auffüllen“ – nur der Weg zur Bibliothek.
+    expect(find.text('WIEDERKEHRENDE AUFFÜLLEN'), findsNothing);
+    expect(find.text('ALLE IN DEN TOPF'), findsNothing);
 
-    await tester.tap(find.byKey(const Key('tab-lib')));
+    await tester.tap(find.byKey(const Key('openLib')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Spülmaschine ausräumen'));
     await tester.pumpAndSettle();
@@ -126,12 +128,29 @@ void main() {
 
     await tester.tap(find.byKey(ValueKey('row-${c.id}')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('menu-delete')));
+    // Im Topf gibt es kein „Löschen“, nur „Aus dem Topf nehmen“.
+    expect(find.byKey(const Key('menu-delete')), findsNothing);
+    await tester.tap(find.byKey(const Key('menu-out')));
     await tester.pumpAndSettle();
     expect(store.pot, isEmpty);
     await tester.tap(find.text('Rückgängig'));
     await tester.pumpAndSettle();
     expect(store.pot.single.title, 'Fenster putzen');
+  });
+
+  testWidgets('wiederkehrende im Topf: nur aus dem Topf nehmen',
+      (tester) async {
+    final store = await _store();
+    final c = (await store.add('Bad putzen', repeating: true))!;
+    await tester.pumpWidget(ChoreDiceApp(store: store));
+    await tester.tap(find.byKey(ValueKey('row-${c.id}')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('menu-delete')), findsNothing);
+    expect(find.text('Bleibt in der Bibliothek'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('menu-out')));
+    await tester.pumpAndSettle();
+    expect(store.pot, isEmpty);
+    expect(store.library.single.title, 'Bad putzen');
   });
 
   testWidgets('Bibliothek: über ⋮ löschen', (tester) async {
