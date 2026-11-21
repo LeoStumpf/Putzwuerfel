@@ -310,15 +310,19 @@ class ChoreRow extends StatelessWidget {
       {super.key,
       required this.title,
       required this.repeating,
-      this.compact = false});
+      this.compact = false,
+      this.onTap});
 
   final String title;
   final bool repeating;
   final bool compact;
 
+  /// Antippen öffnet das Bearbeiten-Menü (zeigt dann ein „⋮“).
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final row = Container(
       padding: EdgeInsets.symmetric(
           horizontal: compact ? 12 : 14, vertical: compact ? 8 : 12),
       decoration: BoxDecoration(
@@ -336,9 +340,15 @@ class ChoreRow extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                     fontSize: compact ? 14 : 15)),
           ),
+          if (onTap != null)
+            const Icon(Icons.more_vert,
+                color: K.muted, size: 20, semanticLabel: 'bearbeiten'),
         ],
       ),
     );
+    if (onTap == null) return row;
+    return GestureDetector(
+        behavior: HitTestBehavior.opaque, onTap: onTap, child: row);
   }
 }
 

@@ -108,4 +108,42 @@ void main() {
     expect(find.text('BAD PUTZEN'), findsOneWidget);
     expect(find.byKey(const Key('done')), findsOneWidget);
   });
+
+  testWidgets('offene Aufgabe im Topf umbenennen und löschen', (tester) async {
+    final store = await _store();
+    final c = (await store.add('Fenstr putzen'))!;
+    await tester.pumpWidget(ChoreDiceApp(store: store));
+
+    await tester.tap(find.byKey(ValueKey('row-${c.id}')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('menu-rename')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Fenster putzen');
+    await tester.tap(find.text('Speichern'));
+    await tester.pumpAndSettle();
+    expect(find.text('Fenster putzen'), findsOneWidget);
+    expect(store.pot.single.title, 'Fenster putzen');
+
+    await tester.tap(find.byKey(ValueKey('row-${c.id}')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('menu-delete')));
+    await tester.pumpAndSettle();
+    expect(store.pot, isEmpty);
+    await tester.tap(find.text('Rückgängig'));
+    await tester.pumpAndSettle();
+    expect(store.pot.single.title, 'Fenster putzen');
+  });
+
+  testWidgets('Bibliothek: über ⋮ löschen', (tester) async {
+    final store = await _store();
+    final c = (await store.add('Bad putzen', repeating: true))!;
+    await tester.pumpWidget(ChoreDiceApp(store: store));
+    await tester.tap(find.byKey(const Key('tab-lib')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(ValueKey('more-${c.id}')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('menu-delete')));
+    await tester.pumpAndSettle();
+    expect(store.library, isEmpty);
+  });
 }

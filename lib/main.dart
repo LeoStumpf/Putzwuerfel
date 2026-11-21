@@ -44,6 +44,79 @@ void _snack(ScaffoldMessengerState messenger, String text,
     ));
 }
 
+/// Bearbeiten-Menü für eine Aufgabe (Topf-Liste und Bibliothek):
+/// umbenennen, aus dem Topf nehmen, zur Bibliothek, löschen (mit Rückgängig).
+Future<void> showChoreMenu(
+    BuildContext context, ChoreStore store, Chore c) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final action = await showModalBottomSheet<String>(
+    context: context,
+    builder: (context) => Theme(
+      data: creamTheme(),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+              child: Text(c.title.toUpperCase(),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontFamily: K.display, fontSize: 20, color: K.ink)),
+            ),
+            ListTile(
+              key: const Key('menu-rename'),
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Umbenennen'),
+              onTap: () => Navigator.pop(context, 'rename'),
+            ),
+            if (c.repeating && c.inPot)
+              ListTile(
+                key: const Key('menu-out'),
+                leading: const Icon(Icons.remove_circle_outline),
+                title: const Text('Aus dem Topf nehmen'),
+                onTap: () => Navigator.pop(context, 'out'),
+              ),
+            if (!c.repeating)
+              ListTile(
+                key: const Key('menu-lib'),
+                leading: const Icon(Icons.repeat),
+                title: const Text('Zur Bibliothek hinzufügen'),
+                onTap: () => Navigator.pop(context, 'lib'),
+              ),
+            ListTile(
+              key: const Key('menu-delete'),
+              leading: const Icon(Icons.delete_outline, color: K.red),
+              title: const Text('Löschen', style: TextStyle(color: K.red)),
+              onTap: () => Navigator.pop(context, 'delete'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    ),
+  );
+  if (!context.mounted) return;
+  switch (action) {
+    case 'rename':
+      final t = await showDialog<String>(
+        context: context,
+        builder: (_) => RenameDialog(initial: c.title),
+      );
+      if (t != null) await store.rename(c.id, t);
+    case 'out':
+      await store.removeFromPot(c.id);
+    case 'lib':
+      await store.makeRepeating(c.id);
+    case 'delete':
+      final snapshot = Chore(
+          id: c.id, title: c.title, repeating: c.repeating, inPot: c.inPot);
+      await store.delete(c.id);
+      _snack(messenger, '„${c.title}“ gelöscht',
+          actionLabel: 'Rückgängig', onAction: () => store.restore(snapshot));
+  }
+}
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key, required this.store, this.random});
 
@@ -373,7 +446,12 @@ class _PotPageState extends State<PotPage> with SingleTickerProviderStateMixin {
                     onAction: () => store.restore(snapshot),
                   );
                 },
-                child: ChoreRow(title: c.title, repeating: c.repeating),
+                child: ChoreRow(
+                  key: ValueKey('row-${c.id}'),
+                  title: c.title,
+                  repeating: c.repeating,
+                  onTap: () => showChoreMenu(context, store, c),
+                ),
               );
             },
           ),
@@ -639,58 +717,6 @@ class LibraryPage extends StatelessWidget {
 
   final ChoreStore store;
 
-  Future<void> _menu(BuildContext context, Chore c) async {
-    final action = await showModalBottomSheet<String>(
-      context: context,
-      builder: (context) => Theme(
-        data: creamTheme(),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-                child: Text(c.title.toUpperCase(),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        fontFamily: K.display, fontSize: 20, color: K.ink)),
-              ),
-              ListTile(
-                leading: const Icon(Icons.edit_outlined),
-                title: const Text('Umbenennen'),
-                onTap: () => Navigator.pop(context, 'rename'),
-              ),
-              if (c.inPot)
-                ListTile(
-                  leading: const Icon(Icons.remove_circle_outline),
-                  title: const Text('Aus dem Topf nehmen'),
-                  onTap: () => Navigator.pop(context, 'out'),
-                ),
-              ListTile(
-                leading: const Icon(Icons.delete_outline, color: K.red),
-                title: const Text('Löschen', style: TextStyle(color: K.red)),
-                onTap: () => Navigator.pop(context, 'delete'),
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (!context.mounted) return;
-    if (action == 'rename') {
-      final t = await showDialog<String>(
-        context: context,
-        builder: (_) => RenameDialog(initial: c.title),
-      );
-      if (t != null) await store.rename(c.id, t);
-    } else if (action == 'out') {
-      await store.removeFromPot(c.id);
-    } else if (action == 'delete') {
-      await store.delete(c.id);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final lib = store.library;
@@ -707,7 +733,7 @@ class LibraryPage extends StatelessWidget {
                 SizedBox(height: 8),
                 Text(
                   'Alles, was immer wiederkommt. Antippen = ab in den Topf, '
-                  'lange drücken für mehr.',
+                  '⋮ oder lange drücken = bearbeiten.',
                   style: TextStyle(
                       color: K.soft, fontWeight: FontWeight.w700, fontSize: 15),
                 ),
@@ -765,7 +791,7 @@ class LibraryPage extends StatelessWidget {
                 return _LibraryTile(
                   chore: c,
                   onTap: c.inPot ? null : () => store.addToPot(c.id),
-                  onLongPress: () => _menu(context, c),
+                  onLongPress: () => showChoreMenu(context, store, c),
                 );
               },
             ),
@@ -794,15 +820,27 @@ class _LibraryTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          if (inPot)
-            const Text('IM TOPF',
-                style: TextStyle(
-                    color: K.green,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 11,
-                    letterSpacing: 1.1))
-          else
-            const Icon(Icons.add, color: K.cream, size: 20),
+          Row(
+            children: [
+              Expanded(
+                child: inPot
+                    ? const Text('IM TOPF',
+                        style: TextStyle(
+                            color: K.green,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 11,
+                            letterSpacing: 1.1))
+                    : const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Icon(Icons.add, color: K.cream, size: 20)),
+              ),
+              _MoreButton(
+                key: ValueKey('more-${chore.id}'),
+                color: inPot ? K.ink : K.cream,
+                onPressed: onLongPress,
+              ),
+            ],
+          ),
           Text(
             chore.title,
             maxLines: 2,
@@ -839,6 +877,30 @@ class _LibraryTile extends StatelessWidget {
         onTap: onTap,
         onLongPress: onLongPress,
         child: tile,
+      ),
+    );
+  }
+}
+
+/// Kleiner „⋮“-Knopf zum Bearbeiten.
+class _MoreButton extends StatelessWidget {
+  const _MoreButton({super.key, required this.color, required this.onPressed});
+
+  final Color color;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Bearbeiten',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.only(left: 12),
+          child: Icon(Icons.more_vert, color: color, size: 20),
+        ),
       ),
     );
   }
