@@ -5,18 +5,27 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'store.dart';
+import 'timer.dart';
+import 'timer_ui.dart';
 import 'ui.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
-  runApp(ChoreDiceApp(store: ChoreStore(prefs)));
+  runApp(ChoreDiceApp(
+    store: ChoreStore(prefs),
+    timer: ChoreTimer(prefs, notifier: LocalTimerNotifier()),
+  ));
 }
 
 class ChoreDiceApp extends StatelessWidget {
-  const ChoreDiceApp({super.key, required this.store, this.random});
+  const ChoreDiceApp(
+      {super.key, required this.store, this.timer, this.random});
 
   final ChoreStore store;
+
+  /// Putz-Timer; ohne Angabe ein flüchtiger (z. B. in Tests).
+  final ChoreTimer? timer;
   final Random? random;
 
   @override
@@ -25,7 +34,7 @@ class ChoreDiceApp extends StatelessWidget {
       title: 'Putzwürfel',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
-      home: HomePage(store: store, random: random),
+      home: HomePage(store: store, timer: timer, random: random),
     );
   }
 }
@@ -190,9 +199,10 @@ class _MenuItem extends StatelessWidget {
 }
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key, required this.store, this.random});
+  const HomePage({super.key, required this.store, this.timer, this.random});
 
   final ChoreStore store;
+  final ChoreTimer? timer;
   final Random? random;
 
   @override
@@ -201,6 +211,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _tab = 0;
+  late final ChoreTimer _timer = widget.timer ?? ChoreTimer(null);
 
   @override
   Widget build(BuildContext context) {
@@ -210,19 +221,20 @@ class _HomePageState extends State<HomePage> {
         systemNavigationBarColor: K.greenDark,
       ),
       child: ListenableBuilder(
-        listenable: widget.store,
+        listenable: Listenable.merge([widget.store, _timer]),
         builder: (context, _) {
           final store = widget.store;
           final current = store.current;
           final Widget body;
           final String key;
           if (current != null) {
-            body = ResultPage(store: store, chore: current);
+            body = ResultPage(store: store, timer: _timer, chore: current);
             key = 'result-${current.id}';
           } else if (_tab == 0) {
             body = PotPage(
                 store: store,
                 random: widget.random,
+                timer: _timer,
                 onOpenLibrary: () => setState(() => _tab = 1));
             key = 'pot';
           } else {
@@ -232,9 +244,16 @@ class _HomePageState extends State<HomePage> {
           return Scaffold(
             body: SafeArea(
               bottom: current != null,
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 250),
-                child: KeyedSubtree(key: ValueKey(key), child: body),
+              child: Column(
+                children: [
+                  if (_timer.active) TimerBar(timer: _timer),
+                  Expanded(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      child: KeyedSubtree(key: ValueKey(key), child: body),
+                    ),
+                  ),
+                ],
               ),
             ),
             bottomNavigationBar: current != null
@@ -378,9 +397,11 @@ class PotPage extends StatefulWidget {
       {super.key,
       required this.store,
       required this.onOpenLibrary,
+      required this.timer,
       this.random});
 
   final ChoreStore store;
+  final ChoreTimer timer;
   final VoidCallback onOpenLibrary;
   final Random? random;
 
@@ -487,6 +508,13 @@ class _PotPageState extends State<PotPage> with SingleTickerProviderStateMixin {
                   ),
           ),
         ),
+        if (pot.isNotEmpty && !widget.timer.active)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: TimerOpenButton(timer: widget.timer),
+            ),
+          ),
         if (pot.isNotEmpty) SliverToBoxAdapter(
           child: SectionLabel('ALLES OFFENE · ${pot.length}'),
         ),
@@ -581,9 +609,14 @@ class _EmptyPot extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class ResultPage extends StatelessWidget {
-  const ResultPage({super.key, required this.store, required this.chore});
+  const ResultPage(
+      {super.key,
+      required this.store,
+      required this.timer,
+      required this.chore});
 
   final ChoreStore store;
+  final ChoreTimer timer;
   final Chore chore;
 
   Future<void> _done(BuildContext context) async {
@@ -594,7 +627,9 @@ class ResultPage extends StatelessWidget {
         repeating: chore.repeating,
         inPot: true);
     HapticFeedback.mediumImpact();
+    final counted = timer.running;
     await store.complete(chore.id);
+    await timer.countDone();
     if (snapshot.repeating) {
       _snack(
         messenger,
@@ -603,6 +638,7 @@ class ResultPage extends StatelessWidget {
         onAction: () async {
           await store.restore(snapshot);
           await store.setCurrent(snapshot.id);
+          if (counted) await timer.uncountDone();
         },
       );
     } else {
