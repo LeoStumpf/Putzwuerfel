@@ -10,6 +10,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///   und wird beim Erledigen gelöscht.
 /// * Wiederkehrend (`repeating == true`): bleibt immer in der Bibliothek;
 ///   [inPot] bestimmt, ob sie gerade gewürfelt werden kann.
+///
+/// Eine einmalige Aufgabe wird durch „Zur Bibliothek hinzufügen“ dauerhaft
+/// wiederkehrend.
 class Chore {
   Chore({
     required this.id,
@@ -20,7 +23,7 @@ class Chore {
 
   final String id;
   String title;
-  final bool repeating;
+  bool repeating;
   bool inPot;
 
   Map<String, dynamic> toJson() => {
@@ -44,10 +47,20 @@ class ChoreStore extends ChangeNotifier {
   }
 
   static const _key = 'chores_v1';
+  static const _currentKey = 'current_v1';
 
   final SharedPreferences _prefs;
   final List<Chore> _chores = [];
   int _nextId = 0;
+  String? _currentId;
+
+  /// Die gezogene Aufgabe, die gerade dran ist (bis sie erledigt ist).
+  Chore? get current {
+    final id = _currentId;
+    if (id == null) return null;
+    final c = byId(id);
+    return (c != null && c.inPot) ? c : null;
+  }
 
   /// Aufgaben, aus denen gewürfelt wird.
   List<Chore> get pot => _chores.where((c) => c.inPot).toList();
@@ -67,6 +80,7 @@ class ChoreStore extends ChangeNotifier {
   }
 
   void _load() {
+    _currentId = _prefs.getString(_currentKey);
     final raw = _prefs.getString(_key);
     if (raw == null) return;
     final list = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
@@ -76,9 +90,15 @@ class ChoreStore extends ChangeNotifier {
   }
 
   Future<void> _save() async {
+    if (_currentId != null && current == null) _currentId = null;
     notifyListeners();
     await _prefs.setString(
         _key, jsonEncode(_chores.map((c) => c.toJson()).toList()));
+    if (_currentId == null) {
+      await _prefs.remove(_currentKey);
+    } else {
+      await _prefs.setString(_currentKey, _currentId!);
+    }
   }
 
   String _newId() =>
@@ -98,6 +118,45 @@ class ChoreStore extends ChangeNotifier {
     final p = pot;
     if (p.isEmpty) return null;
     return p[(random ?? Random()).nextInt(p.length)];
+  }
+
+  /// Macht [id] zur aktuellen Aufgabe (nach dem Würfeln).
+  Future<void> setCurrent(String id) async {
+    if (byId(id)?.inPot != true) return;
+    _currentId = id;
+    await _save();
+  }
+
+  /// Würfelt und merkt sich das Ergebnis als aktuelle Aufgabe.
+  Future<Chore?> draw([Random? random]) async {
+    final c = roll(random);
+    if (c != null) await setCurrent(c.id);
+    return c;
+  }
+
+  /// „Zur Bibliothek hinzufügen“: die Aufgabe bleibt, wie sie ist (auch im
+  /// Topf bzw. aktuell), wird ab jetzt aber wiederkehrend.
+  Future<void> makeRepeating(String id) async {
+    final c = byId(id);
+    if (c == null || c.repeating) return;
+    c.repeating = true;
+    await _save();
+  }
+
+  /// Nimmt eine schon erledigte (gelöschte) einmalige Aufgabe als
+  /// wiederkehrende in die Bibliothek auf (nicht im Topf).
+  Future<void> addToLibrary(Chore snapshot) async {
+    final existing = byId(snapshot.id);
+    if (existing != null) {
+      existing.repeating = true;
+    } else {
+      _chores.add(Chore(
+          id: snapshot.id,
+          title: snapshot.title,
+          repeating: true,
+          inPot: false));
+    }
+    await _save();
   }
 
   /// Erledigt: einmalige werden gelöscht, wiederkehrende wandern zurück in
@@ -148,6 +207,7 @@ class ChoreStore extends ChangeNotifier {
     final existing = byId(chore.id);
     if (existing != null) {
       existing.inPot = chore.inPot;
+      existing.repeating = chore.repeating;
     } else {
       _chores.add(chore);
     }

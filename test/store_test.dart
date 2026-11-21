@@ -78,4 +78,37 @@ void main() {
     await s.restore(Chore(id: c.id, title: c.title));
     expect(s.pot.single.title, 'Müll');
   });
+
+  test('draw merkt sich die aktuelle Aufgabe, Erledigen löscht sie', () async {
+    final s = await newStore();
+    final c = (await s.add('Bad putzen', repeating: true))!;
+    expect((await s.draw(Random(1)))!.id, c.id);
+    expect(s.current!.id, c.id);
+    expect((await newStore()).current!.id, c.id);
+    await s.complete(c.id);
+    expect(s.current, isNull);
+    expect((await newStore()).current, isNull);
+  });
+
+  test('makeRepeating ändert nur den Typ', () async {
+    final s = await newStore();
+    final c = (await s.add('Keller'))!;
+    await s.setCurrent(c.id);
+    await s.makeRepeating(c.id);
+    expect(s.current!.repeating, isTrue);
+    expect(s.current!.inPot, isTrue);
+    expect(s.library.single.id, c.id);
+  });
+
+  test('addToLibrary holt erledigte einmalige als wiederkehrend zurück',
+      () async {
+    final s = await newStore();
+    final c = (await s.add('Fenster'))!;
+    await s.complete(c.id);
+    expect(s.byId(c.id), isNull);
+    await s.addToLibrary(Chore(id: c.id, title: c.title));
+    expect(s.library.single.title, 'Fenster');
+    expect(s.library.single.inPot, isFalse);
+    expect(s.pot, isEmpty);
+  });
 }
